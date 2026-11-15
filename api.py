@@ -18,16 +18,21 @@ SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 ORIGINAL_DIR = Path(__file__).resolve().parent / "target"
 
 app = FastAPI()
+
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if os.environ.get("FRONTEND_URL"):
+    ALLOWED_ORIGINS.extend([o.strip() for o in os.environ["FRONTEND_URL"].split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"],
+    allow_headers=["*"],
 )
 
 
@@ -131,6 +136,59 @@ def get_run(run_id: str):
         return state_manager.read_state(run_id)
     except (ValueError, FileNotFoundError):
         raise HTTPException(status_code=404, detail="Run not found")
+
+
+def _find_patched_app(run_id: str, finding_id: str) -> Path | None:
+    candidate = Path("runs") / run_id / "patched" / finding_id / "app.py"
+    if candidate.exists():
+        return candidate
+    candidate_alt = Path("runs") / run_id / "patched" / "finding-01" / "app.py"
+    if candidate_alt.exists():
+        return candidate_alt
+    patched_root = Path("runs") / run_id / "patched"
+    if patched_root.exists():
+        for sub in patched_root.glob("*/app.py"):
+            return sub
+    return None
+
+
+@app.get("/runs/{run_id}/fixed/{finding_id}/file")
+def get_fixed_file(run_id: str, finding_id: str):
+    if not (SAFE_ID.match(run_id) and SAFE_ID.match(finding_id)):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    patched_file = _find_patched_app(run_id, finding_id)
+    if not patched_file or not patched_file.exists():
+        raise HTTPException(status_code=404, detail="Fixed file not found")
+    return Response(
+        patched_file.read_text(encoding="utf-8"),
+        media_type="text/x-python",
+        headers={"Content-Disposition": 'attachment; filename="app.py"'},
+    )
+
+
+@app.get("/runs/{run_id}/fixed/{finding_id}/code")
+def get_fixed_code(run_id: str, finding_id: str):
+    if not (SAFE_ID.match(run_id) and SAFE_ID.match(finding_id)):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    patched_file = _find_patched_app(run_id, finding_id)
+    if not patched_file or not patched_file.exists():
+        raise HTTPException(status_code=404, detail="Fixed file not found")
+    return {
+        "filename": "app.py",
+        "code": patched_file.read_text(encoding="utf-8"),
+    }
+
+
+@app.post("/runs/{run_id}/apply/{finding_id}")
+def apply_fixed_code(run_id: str, finding_id: str):
+    if not (SAFE_ID.match(run_id) and SAFE_ID.match(finding_id)):
+        raise HTTPException(status_code=400, detail="Invalid id")
+    patched_file = _find_patched_app(run_id, finding_id)
+    if not patched_file or not patched_file.exists():
+        raise HTTPException(status_code=404, detail="Fixed file not found")
+    target_app = ORIGINAL_DIR / "app.py"
+    target_app.write_text(patched_file.read_text(encoding="utf-8"), encoding="utf-8")
+    return {"status": "applied", "message": "Fixed code has been applied directly to target/app.py"}
 
 
 @app.get("/runs/{run_id}/patch")

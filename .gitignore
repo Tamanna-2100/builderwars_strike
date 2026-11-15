@@ -11,3 +11,5 @@ runs/
 *.sqlite3
 *.pkg
 tests/test_security_*.py
+*.mov
+*.mp4

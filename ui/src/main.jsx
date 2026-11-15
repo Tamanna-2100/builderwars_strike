@@ -18,14 +18,17 @@ import {
   GitBranch,
   GitPullRequest,
   Layers2,
+  Moon,
   Play,
   RefreshCw,
   ShieldCheck,
   Sparkles,
+  Sun,
   Upload,
   X,
   XCircle,
 } from "lucide-react";
+import logoImg from "./logo.jpeg";
 import "./style.css";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
@@ -52,9 +55,36 @@ function Finding({ finding, index, runId, isMock }) {
   const [liveReplay, setLiveReplay] = useState(null);
   const [replaying, setReplaying] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [showFixedCode, setShowFixedCode] = useState(false);
+  const [applyStatus, setApplyStatus] = useState(null);
 
   const discarded = finding.verdict === "discarded";
   const diff = finding.patch?.diff || "No patch available.";
+
+  function copyCodeText(text) {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  }
+
+  async function handleApplyFix() {
+    if (!runId || isMock) return;
+    setApplyStatus("Applying fix to your code...");
+    try {
+      const res = await fetch(`${API_BASE}/runs/${runId}/apply/${finding.id}`, { method: "POST" });
+      const data = await res.json();
+      if (res.ok) {
+        setApplyStatus("✅ Fix applied directly to target/app.py!");
+        setTimeout(() => setApplyStatus(null), 4000);
+      } else {
+        setApplyStatus(data.detail || "Could not apply fix automatically.");
+      }
+    } catch {
+      setApplyStatus("Error applying fix.");
+    }
+  }
 
   const explainObj =
     typeof finding.explain === "object" && finding.explain !== null
@@ -62,13 +92,13 @@ function Finding({ finding, index, runId, isMock }) {
       : {
           story:
             finding.explain ||
-            "Route exposed sensitive data without verifying caller identity.",
+            "Users could peek at other people's private data by changing the ID number in the link.",
           why_it_matters:
-            "Private user notes or customer documents can be read by anyone on the platform.",
+            "Any user who logs into your app can see private customer data and confidential files belonging to other accounts.",
           mistake_pattern:
-            "Missing authorization check: fetching records by ID without checking record owner.",
+            "The code fetched the record by number, but forgot to check whether the logged-in user actually owns it.",
           prevention_rule:
-            "Always verify resource.user_id == current_user.id before returning data.",
+            "We added a security lock: if the record doesn't belong to the logged-in user, the app blocks it with an 'Access Denied' error.",
           ai_prompt:
             "When writing an endpoint that loads a user record by ID, always verify record['user_id'] == current_user()['id'] and return 403 Forbidden if not authorized.",
         };
@@ -146,6 +176,95 @@ function Finding({ finding, index, runId, isMock }) {
             </button>
           </div>
 
+          {!discarded && (
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                alignItems: "center",
+                flexWrap: "wrap",
+                margin: "10px 19px 4px",
+                padding: "12px 14px",
+                borderRadius: "6px",
+                background: "var(--bg-pill)",
+                border: "1px solid var(--border-pill)",
+              }}
+            >
+              <span style={{ color: "var(--brand-pill-text)", fontSize: "12px", fontWeight: "600", marginRight: "4px" }}>
+                📦 Fixed Code Ready:
+              </span>
+              <a
+                href={`${API_BASE}/runs/${runId}/fixed/${finding.id}/file`}
+                className="refresh-button"
+                style={{ textDecoration: "none", padding: "6px 12px", fontSize: "11.5px", background: "var(--action-bg)", color: "var(--action-text)" }}
+                download="app.py"
+              >
+                <Download size={13} /> Download Fixed app.py
+              </a>
+              <button
+                type="button"
+                className="refresh-button"
+                style={{ padding: "6px 12px", fontSize: "11.5px", background: "var(--brand-pill-bg)", color: "var(--brand-pill-text)" }}
+                onClick={handleApplyFix}
+              >
+                <Check size={13} /> Apply Fix to Codebase (1-Click)
+              </button>
+              <button
+                type="button"
+                className="refresh-button"
+                style={{ padding: "6px 12px", fontSize: "11.5px", background: "transparent", border: "1px solid var(--border-card)", color: "var(--text-muted)" }}
+                onClick={() => setShowFixedCode(!showFixedCode)}
+              >
+                <Code2 size={13} /> {showFixedCode ? "Hide Fixed Code" : "Inspect Fixed Code"}
+              </button>
+              {applyStatus && (
+                <span style={{ color: "var(--brand-primary)", fontSize: "12px", fontWeight: "600", marginLeft: "4px" }}>{applyStatus}</span>
+              )}
+            </div>
+          )}
+
+          {showFixedCode && !discarded && (
+            <div
+              style={{
+                margin: "8px 19px 12px",
+                padding: "14px",
+                background: "var(--bg-flow)",
+                border: "1px solid var(--border-flow)",
+                borderRadius: "6px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                <span style={{ color: "var(--brand-pill-text)", fontSize: "12px", fontWeight: "600" }}>
+                  📄 Patched <code>app.py</code> — Tested & Verified in Live Sandbox
+                </span>
+                <button
+                  type="button"
+                  className="copy-button"
+                  onClick={() => copyCodeText(finding.patch?.fixed_code || finding.patch?.diff)}
+                >
+                  <Copy size={12} /> {codeCopied ? "Copied!" : "Copy Full Code"}
+                </button>
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  maxHeight: "260px",
+                  overflow: "auto",
+                  fontSize: "11.5px",
+                  color: "var(--text-code)",
+                  background: "var(--code-bg)",
+                  border: "1px solid var(--code-border)",
+                  padding: "10px",
+                  borderRadius: "4px",
+                  fontFamily: "monospace",
+                  lineHeight: "1.4",
+                }}
+              >
+                {finding.patch?.fixed_code || finding.patch?.diff || "Fixed code loaded."}
+              </pre>
+            </div>
+          )}
+
           {viewMode === "vibe" ? (
             <div className="simple-view">
               <div className="simple-summary">
@@ -153,7 +272,7 @@ function Finding({ finding, index, runId, isMock }) {
                   <h3 className="simple-verdict">
                     {discarded
                       ? "False Alarm Discarded"
-                      : "Critical Access Control Flaw (IDOR) Detected & Remediated"}
+                      : "Privacy Leak Detected & Fully Remediated"}
                   </h3>
                   <p style={{ margin: "6px 0 0", color: "#8fa087", fontSize: "12.5px" }}>
                     {finding.title}
@@ -166,15 +285,15 @@ function Finding({ finding, index, runId, isMock }) {
 
               <div className="explain-grid">
                 <div>
-                  <div className="detail-label">1. WHAT HAPPENED</div>
+                  <div className="detail-label">{discarded ? "1. WHAT WE TESTED" : "1. WHAT BUTTON / CONNECTION BROKE"}</div>
                   <p>{explainObj.story}</p>
                 </div>
                 <div>
-                  <div className="detail-label">2. WHY IT MATTERS</div>
+                  <div className="detail-label">{discarded ? "2. WHY IT IS SAFE" : "2. WHY IT IS DANGEROUS"}</div>
                   <p>{explainObj.why_it_matters}</p>
                 </div>
                 <div>
-                  <div className="detail-label">3. HOW VERITY FIXED IT</div>
+                  <div className="detail-label">{discarded ? "3. VERITY VERDICT" : "3. HOW VERITY FIXED & TESTED IT"}</div>
                   <p>{explainObj.prevention_rule}</p>
                 </div>
               </div>
@@ -182,20 +301,20 @@ function Finding({ finding, index, runId, isMock }) {
               {!discarded && (
                 <div className="evidence-flow">
                   <div className="flow-panel">
-                    <div className="flow-step">1. ATTACK (SIMULATED USER)</div>
+                    <div className="flow-step">1. USER ALICE TRIES TO ACCESS BOB'S NOTE</div>
                     <pre className="code-block" style={{ minHeight: "125px" }}>
-                      {`GET /notes/2\nX-Token: alice-token\n\n# Alice asks for Bob's note #2`}
+                      {`GET /notes/2\nX-Token: alice-token\n\n# Alice asks for Bob's private note #2`}
                     </pre>
                   </div>
                   <div className="flow-panel">
-                    <div className="flow-step">2. BEFORE FIX (EXPOSED 200 OK)</div>
-                    <pre className="code-block" style={{ minHeight: "125px", color: "#f2a89f" }}>
+                    <div className="flow-step">2. BEFORE FIX (BOB'S SECRET LEAKED - 200 OK)</div>
+                    <pre className="code-block" style={{ minHeight: "125px", color: "var(--flow-fail-text)" }}>
                       {`HTTP/1.1 200 OK\n{\n  "id": 2,\n  "body": "BOB_SECRET_123"\n}\n# Bob's private data leaked!`}
                     </pre>
                   </div>
                   <div className="flow-panel">
-                    <div className="flow-step">3. AFTER FIX (BLOCKED 403)</div>
-                    <pre className="code-block" style={{ minHeight: "125px", color: "#b9e28c" }}>
+                    <div className="flow-step">3. AFTER FIX (ACCESS BLOCKED - 403 FORBIDDEN)</div>
+                    <pre className="code-block" style={{ minHeight: "125px", color: "var(--flow-success-text)" }}>
                       {`HTTP/1.1 403 Forbidden\n{\n  "error": "Forbidden"\n}\n# Unauthorized access blocked!`}
                     </pre>
                   </div>
@@ -210,18 +329,18 @@ function Finding({ finding, index, runId, isMock }) {
                   alignItems: "center",
                   flexWrap: "wrap",
                   gap: "12px",
-                  background: "rgba(255, 255, 255, 0.03)",
+                  background: "var(--bg-card-alt)",
                   padding: "12px 16px",
                   borderRadius: "6px",
-                  border: "1px solid rgba(255, 255, 255, 0.08)",
+                  border: "1px solid var(--border-card)",
                   marginTop: "18px",
                 }}
               >
                 <div style={{ flex: 1, minWidth: "220px" }}>
-                  <strong style={{ display: "block", color: "#d9ebc1", marginBottom: "4px" }}>
+                  <strong style={{ display: "block", color: "var(--text-heading)", marginBottom: "4px" }}>
                     🤖 Copy Prompt for your AI Assistant (Cursor, Claude, Copilot):
                   </strong>
-                  <span style={{ color: "#a1ad99", fontSize: "12px" }}>
+                  <span style={{ color: "var(--text-muted)", fontSize: "12px" }}>
                     {explainObj.ai_prompt}
                   </span>
                 </div>
@@ -416,6 +535,31 @@ function App() {
   const params = new URLSearchParams(window.location.search);
   const isMock = params.get("demo") === "mock";
 
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("verity-theme");
+      if (saved === "light" || saved === "dark") return saved;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    } catch {
+      return "dark";
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem("verity-theme", theme);
+      const meta = document.querySelector('meta[name="color-scheme"]');
+      if (meta) meta.content = theme;
+      const metaTheme = document.getElementById("theme-color-meta");
+      if (metaTheme) metaTheme.content = theme === "dark" ? "#101210" : "#f6f8f4";
+    } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
   const [currentView, setCurrentView] = useState("overview"); // "overview" | "codebase" | "github"
   const [repoInput, setRepoInput] = useState("");
   const [runId, setRunId] = useState(params.get("run_id") || null);
@@ -593,8 +737,17 @@ function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">
-            <Activity size={21} strokeWidth={2.2} />
+          <div className="brand-mark" style={{ overflow: "hidden", padding: 0 }}>
+            <img
+              src={logoImg}
+              alt="Verity Logo"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+            />
           </div>
           <div>
             <strong>
@@ -613,8 +766,8 @@ function App() {
             width: "100%",
             border: 0,
             cursor: "pointer",
-            background: currentView === "overview" ? "#292f24" : "transparent",
-            color: currentView === "overview" ? "#d7edb4" : "#a8b5a0",
+            background: currentView === "overview" ? "var(--brand-pill-bg)" : "transparent",
+            color: currentView === "overview" ? "var(--brand-pill-text)" : "var(--text-muted)",
             marginBottom: "4px",
             textAlign: "left",
           }}
@@ -631,8 +784,8 @@ function App() {
             width: "100%",
             border: 0,
             cursor: "pointer",
-            background: currentView === "codebase" ? "#292f24" : "transparent",
-            color: currentView === "codebase" ? "#d7edb4" : "#a8b5a0",
+            background: currentView === "codebase" ? "var(--brand-pill-bg)" : "transparent",
+            color: currentView === "codebase" ? "var(--brand-pill-text)" : "var(--text-muted)",
             marginBottom: "4px",
             textAlign: "left",
           }}
@@ -649,8 +802,8 @@ function App() {
             width: "100%",
             border: 0,
             cursor: "pointer",
-            background: currentView === "github" ? "#292f24" : "transparent",
-            color: currentView === "github" ? "#d7edb4" : "#a8b5a0",
+            background: currentView === "github" ? "var(--brand-pill-bg)" : "transparent",
+            color: currentView === "github" ? "var(--brand-pill-text)" : "var(--text-muted)",
             textAlign: "left",
           }}
         >
@@ -694,55 +847,16 @@ function App() {
           </div>
 
           <div className="top-right" style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-            <a
-              href={
-                displayRepo.startsWith("http")
-                  ? displayRepo
-                  : `https://github.com/${displayRepo}`
-              }
-              target="_blank"
-              rel="noreferrer"
-              title="Open GitHub Repository"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "7px",
-                padding: "6px 12px",
-                borderRadius: "6px",
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid rgba(255, 255, 255, 0.12)",
-                color: "#e7eae3",
-                textDecoration: "none",
-                fontSize: "12px",
-              }}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="theme-toggle-button"
+              aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
             >
-              <GitBranch size={13} style={{ color: "#c5e87f" }} />
-              <span>{displayRepo.replace("https://github.com/", "")}</span>
-              <span
-                style={{
-                  fontSize: "10px",
-                  color: "#84917c",
-                  borderLeft: "1px solid #444",
-                  paddingLeft: "6px",
-                }}
-              >
-                {config?.branch || "main"}
-              </span>
-              <span
-                style={{
-                  width: "6px",
-                  height: "6px",
-                  borderRadius: "50%",
-                  background: config?.github_configured ? "#b6da7a" : "#e8c793",
-                }}
-                title={
-                  config?.github_configured
-                    ? "GitHub Token Connected (Ready for PR)"
-                    : "GitHub Linked"
-                }
-              />
-              <ExternalLink size={11} style={{ color: "#777" }} />
-            </a>
+              {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
+              <span>{theme === "dark" ? "Light" : "Dark"}</span>
+            </button>
 
             {state?.saved_to_s3 && (
               <span className="badge badge-confirmed" title={(state.s3_keys || []).join("\n")}>
@@ -801,7 +915,7 @@ function App() {
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: "18px" }}>
-                <div style={{ background: "#1b1f1a", border: "1px solid #30362d", borderRadius: "6px", padding: "12px" }}>
+                <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-card)", borderRadius: "6px", padding: "12px", boxShadow: "var(--shadow-card)" }}>
                   <div className="detail-label" style={{ marginBottom: "10px" }}>WORKSPACE FILES</div>
                   {workspaceFiles.map((f) => (
                     <button
@@ -817,8 +931,8 @@ function App() {
                         padding: "8px 10px",
                         borderRadius: "4px",
                         border: 0,
-                        background: selectedFile?.name === f.name ? "#292f24" : "transparent",
-                        color: selectedFile?.name === f.name ? "#d7edb4" : "#99a394",
+                        background: selectedFile?.name === f.name ? "var(--brand-pill-bg)" : "transparent",
+                        color: selectedFile?.name === f.name ? "var(--brand-pill-text)" : "var(--text-muted)",
                         fontSize: "12px",
                         fontFamily: "'DM Mono', monospace",
                         marginBottom: "4px",
@@ -829,7 +943,7 @@ function App() {
                     </button>
                   ))}
                   {workspaceFiles.length === 0 && (
-                    <div style={{ color: "#777", fontSize: "12px" }}>target/app.py</div>
+                    <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>target/app.py</div>
                   )}
                 </div>
 
@@ -845,10 +959,10 @@ function App() {
                       width: "100%",
                       minHeight: "450px",
                       padding: "15px",
-                      background: "#141714",
-                      border: "1px solid #30362d",
+                      background: "var(--code-bg)",
+                      border: "1px solid var(--code-border)",
                       borderRadius: "4px",
-                      color: "#b9c5b2",
+                      color: "var(--code-text)",
                       fontFamily: "'DM Mono', monospace",
                       fontSize: "12px",
                       lineHeight: "1.7",
@@ -880,22 +994,22 @@ function App() {
                 </button>
               </div>
 
-              <div style={{ background: "#1b1f1a", border: "1px solid #30362d", borderRadius: "8px", padding: "24px", maxWidth: "800px" }}>
+              <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-card)", borderRadius: "8px", padding: "24px", maxWidth: "800px", boxShadow: "var(--shadow-card)" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-                  <GitBranch size={24} style={{ color: "#c5e87f" }} />
+                  <GitBranch size={24} style={{ color: "var(--brand-primary)" }} />
                   <div>
-                    <h3 style={{ margin: 0, fontSize: "18px" }}>
+                    <h3 style={{ margin: 0, fontSize: "18px", color: "var(--text-heading)" }}>
                       {displayRepo}
                     </h3>
-                    <small style={{ color: "#83917c" }}>Branch: {config?.branch || "main"}</small>
+                    <small style={{ color: "var(--text-muted)" }}>Branch: {config?.branch || "main"}</small>
                   </div>
                 </div>
 
-                <p style={{ color: "#a8b5a0", fontSize: "13.5px", lineHeight: 1.6 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "13.5px", lineHeight: 1.6 }}>
                   You can point Verity to <strong>any public GitHub repository</strong> to clone and verify it in isolated sandboxes. When a vulnerability is proven and patched:
                 </p>
 
-                <ul style={{ color: "#b9c7b2", fontSize: "13px", lineHeight: 1.8, paddingLeft: "20px" }}>
+                <ul style={{ color: "var(--text-muted)", fontSize: "13px", lineHeight: 1.8, paddingLeft: "20px" }}>
                   <li>Verity creates a dedicated review branch: <code>verity-review/{`{run_id}`}</code></li>
                   <li>Commits the verified unified diff: <code>verity-reviews/{`{run_id}`}/changes.patch</code></li>
                   <li>Uploads captured HTTP exploit proof: <code>verity-reviews/{`{run_id}`}/evidence.md</code></li>
@@ -956,11 +1070,12 @@ function App() {
               {/* REPOSITORY INPUT BAR */}
               <div
                 style={{
-                  background: "#181d17",
-                  border: "1px solid #30372b",
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border-card)",
                   borderRadius: "8px",
                   padding: "18px 22px",
                   marginBottom: "28px",
+                  boxShadow: "var(--shadow-card)",
                 }}
               >
                 <div
@@ -975,16 +1090,16 @@ function App() {
                 >
                   <label
                     style={{
-                      color: "#99ad88",
+                      color: "var(--text-muted)",
                       fontSize: "11px",
                       fontFamily: "'DM Mono', monospace",
                     }}
                   >
                     TEST ANY GITHUB REPOSITORY OR ENTER A REPO URL:
                   </label>
-                  <span style={{ color: "#778370", fontSize: "11px" }}>
+                  <span style={{ color: "var(--text-subtle)", fontSize: "11px" }}>
                     Active Target:{" "}
-                    <strong style={{ color: "#c5e87f" }}>
+                    <strong style={{ color: "var(--brand-primary)" }}>
                       {state?.repo_url || (repoInput || "Sample Vulnerable Target (Local)")}
                     </strong>
                   </span>
@@ -1000,10 +1115,10 @@ function App() {
                       flex: 1,
                       minWidth: "260px",
                       padding: "11px 14px",
-                      background: "#121512",
-                      border: "1px solid #3c4838",
+                      background: "var(--bg-input)",
+                      border: "1px solid var(--border-card)",
                       borderRadius: "5px",
-                      color: "#e7eae3",
+                      color: "var(--text-main)",
                       fontSize: "13px",
                       fontFamily: "'DM Mono', monospace",
                       outline: "none",
@@ -1017,71 +1132,6 @@ function App() {
                   >
                     {scanning ? <RefreshCw size={15} /> : <Play size={15} />}
                     {scanning ? " Running scan & sandbox..." : " Scan & Test Repo"}
-                  </button>
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "10px",
-                    marginTop: "12px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span style={{ color: "#687563", fontSize: "11px" }}>Quick presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRepoInput("https://github.com/Tamanna-2100/builderwars_strike");
-                      startNewScan("https://github.com/Tamanna-2100/builderwars_strike");
-                    }}
-                    disabled={scanning}
-                    style={{
-                      padding: "5px 10px",
-                      background: "rgba(255, 255, 255, 0.05)",
-                      border: "1px solid #3a4736",
-                      borderRadius: "4px",
-                      color: "#b7c9ab",
-                      fontSize: "11px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    🌟 Demo Target (Tamanna-2100/builderwars_strike)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRepoInput("");
-                      startNewScan("");
-                    }}
-                    disabled={scanning}
-                    style={{
-                      padding: "5px 10px",
-                      background: "rgba(255, 255, 255, 0.05)",
-                      border: "1px solid #3a4736",
-                      borderRadius: "4px",
-                      color: "#b7c9ab",
-                      fontSize: "11px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    📁 Local target/ Workspace
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentView("codebase")}
-                    style={{
-                      padding: "5px 10px",
-                      background: "rgba(255, 255, 255, 0.05)",
-                      border: "1px solid #3a4736",
-                      borderRadius: "4px",
-                      color: "#b7c9ab",
-                      fontSize: "11px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    ✏️ Upload or Paste Custom Code
                   </button>
                 </div>
               </div>
