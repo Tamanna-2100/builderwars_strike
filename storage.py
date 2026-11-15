@@ -43,6 +43,21 @@ def upload_run(run_id):
     return keys
 
 
+def delete_run(run_id):
+    bucket = os.environ.get("S3_BUCKET", "").strip()
+    if not bucket:
+        return []
+    client = boto3.client("s3")
+    prefix = f"runs/{run_id}/"
+    response = client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    contents = response.get("Contents", [])
+    if not contents:
+        return []
+    delete_batch = {"Objects": [{"Key": obj["Key"]} for obj in contents]}
+    client.delete_objects(Bucket=bucket, Delete=delete_batch)
+    return [obj["Key"] for obj in contents]
+
+
 def combined_patch(run_id):
     state = state_manager.read_state(run_id)
     diffs = []

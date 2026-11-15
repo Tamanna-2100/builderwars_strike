@@ -70,3 +70,15 @@ def test_download_missing_patch(client):
     run_id = client.post("/scan").json()["run_id"]
     assert client.get(f"/runs/{run_id}/patch").status_code == 404
     assert client.get("/runs/missing/patch").status_code == 404
+
+
+def test_delete_run_endpoint(client, monkeypatch):
+    run_id = client.post("/scan").json()["run_id"]
+    directory = state_manager.run_dir(run_id)
+    assert directory.exists()
+
+    monkeypatch.setattr(api.storage, "delete_run", lambda r: ["runs/example/state.json"])
+    res = client.delete(f"/runs/{run_id}")
+    assert res.status_code == 200
+    assert res.json()["status"] == "deleted"
+    assert not directory.exists()

@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Sparkles,
   Sun,
+  Trash2,
   Upload,
   X,
   XCircle,
@@ -639,6 +640,19 @@ function App() {
     }
   }
 
+  async function handleWipeRun() {
+    if (!runId || isMock) return;
+    if (!window.confirm("Permanently wipe this security run and delete all artifacts from S3 and local storage?")) return;
+    try {
+      await fetch(`${API_BASE}/runs/${runId}`, { method: "DELETE" });
+      setState(null);
+      setRunId(null);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } catch {
+      alert("Error deleting run data.");
+    }
+  }
+
   async function handleSaveFile() {
     if (!selectedFile) return;
     setSaveStatus("Saving file...");
@@ -857,6 +871,22 @@ function App() {
               {theme === "dark" ? <Sun size={13} /> : <Moon size={13} />}
               <span>{theme === "dark" ? "Light" : "Dark"}</span>
             </button>
+
+            {runId && !isMock && (
+              <button
+                type="button"
+                onClick={handleWipeRun}
+                className="theme-toggle-button"
+                style={{
+                  color: "#e06c75",
+                  borderColor: "rgba(224, 108, 117, 0.35)",
+                }}
+                title="Wipe this run session and permanently delete all uploaded artifacts from S3"
+              >
+                <Trash2 size={13} />
+                <span>Wipe S3 & Session</span>
+              </button>
+            )}
 
             {state?.saved_to_s3 && (
               <span className="badge badge-confirmed" title={(state.s3_keys || []).join("\n")}>

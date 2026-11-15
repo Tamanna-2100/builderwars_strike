@@ -94,3 +94,19 @@ def test_pr_failure_returns_fallback(run, monkeypatch):
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
     result = storage.open_review_pr("example")
     assert result == {"pr_url": None, "patch_url": "/runs/example/patch", "error": "GitHub publishing failed: RuntimeError"}
+
+
+def test_delete_run_s3(monkeypatch):
+    client = Mock()
+    client.list_objects_v2.return_value = {
+        "Contents": [{"Key": "runs/example/state.json"}, {"Key": "runs/example/diff.patch"}]
+    }
+    monkeypatch.setenv("S3_BUCKET", "test-bucket")
+    monkeypatch.setattr(storage.boto3, "client", Mock(return_value=client))
+
+    deleted = storage.delete_run("example")
+    assert deleted == ["runs/example/state.json", "runs/example/diff.patch"]
+    client.delete_objects.assert_called_once_with(
+        Bucket="test-bucket",
+        Delete={"Objects": [{"Key": "runs/example/state.json"}, {"Key": "runs/example/diff.patch"}]},
+    )

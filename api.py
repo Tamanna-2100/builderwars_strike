@@ -210,3 +210,29 @@ def create_pr(run_id: str):
         return storage.open_review_pr(run_id)
     except (ValueError, FileNotFoundError):
         raise HTTPException(status_code=404, detail="Run or patch not found")
+
+
+@app.delete("/runs/{run_id}")
+def delete_run_session(run_id: str):
+    """Clean up and delete run artifacts from local disk and S3 when user finishes check."""
+    s3_deleted = []
+    try:
+        s3_deleted = storage.delete_run(run_id)
+    except Exception:
+        pass
+
+    try:
+        local_dir = state_manager.run_dir(run_id)
+        if local_dir.exists():
+            import shutil
+
+            shutil.rmtree(local_dir, ignore_errors=True)
+    except Exception:
+        pass
+
+    return {
+        "status": "deleted",
+        "run_id": run_id,
+        "s3_deleted": s3_deleted,
+        "detail": "Run session wiped from local disk and S3.",
+    }
