@@ -209,34 +209,36 @@ def run(run_id, repo_url=None):
 
         if not attack_result["confirmed"]:
             _safe_update(run_id, "verify", "done", "No vulnerabilities confirmed (false alarms discarded).")
-            discarded_findings = [
-                {
+            discarded_findings = []
+            for idx, h in enumerate(hypotheses, start=1):
+                route_str = h.get("route", "").strip()
+                route_desc = route_str if route_str else f"{h.get('file', 'code')} (line {h.get('line', '')})"
+                story_target = f"this route ({route_str})" if route_str else f"this pattern in {h.get('file', 'your code')}"
+                discarded_findings.append({
                     "id": str(h.get("id", idx)),
-                    "title": f"🛡️ Safe Route Verified ({h['route']}) — Tested & confirmed safe",
+                    "title": f"🛡️ Safe Pattern Verified ({route_desc}) — Tested & confirmed safe",
                     "verdict": "discarded",
                     "severity": "low",
                     "explain": {
-                        "story": f"We tested this route ({h['route']}) in an isolated sandbox. Simulated exploit attempts were rejected and your code remained safe.",
+                        "story": f"We tested {story_target} in an isolated sandbox. Simulated exploit attempts were rejected and your code remained safe.",
                         "why_it_matters": "Your code is working properly here and does not leak private user data.",
-                        "mistake_pattern": "A route that was flagged for review during code scanning, but proved completely safe when attacked.",
+                        "mistake_pattern": "Flagged for review during code scanning, but proved safe when attacked.",
                         "prevention_rule": "No changes needed. Your existing code already handled this connection securely.",
-                        "ai_prompt": f"No security changes needed for {h['route']}.",
+                        "ai_prompt": f"No security changes needed for {route_desc}.",
                     },
-                    "vuln_type": h["vuln_type"],
-                    "file": h["file"],
-                    "route": h["route"],
-                    "line": h["line"],
+                    "vuln_type": h.get("vuln_type", "input handling"),
+                    "file": h.get("file", ""),
+                    "route": route_str,
+                    "line": h.get("line", 1),
                     "evidence": {
                         "confirmed": False,
-                        "request": {"route": h["route"], "note": "Tested against security payload in isolated sandbox"},
+                        "request": {"target": route_desc, "note": "Tested against security payload in isolated sandbox"},
                         "response": {"status": "Safe — exploit rejected or harmless"},
                     },
                     "patch": {"file": "", "diff": "", "summary": "No patch required.", "fixed_code": ""},
                     "replay": {},
                     "test": "No regression test needed.",
-                }
-                for idx, h in enumerate(hypotheses, start=1)
-            ]
+                })
             _update_summary(
                 run_id,
                 status="done",
