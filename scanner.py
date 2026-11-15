@@ -11,16 +11,18 @@ FIELDS = {"id", "vuln_type", "file", "route", "line", "reason"}
 
 def scan(target_dir=None):
     base_dir = Path(target_dir).resolve() if target_dir else TARGET_DIR
-    py_files = sorted(base_dir.glob("*.py"))
+    py_files = sorted(
+        p for p in base_dir.rglob("*.py")
+        if not any(part.startswith(".") or part in {"venv", ".venv", "node_modules", "__pycache__", ".git"} for part in p.parts)
+    )
     if not py_files:
-        py_files = sorted(
-            p for p in base_dir.rglob("*.py")
-            if not any(part.startswith(".") or part in {"venv", ".venv", "node_modules", "__pycache__"} for part in p.parts)
-        )
+        py_files = sorted(base_dir.glob("*.py"))
+    if not py_files:
+        return []
     code = "\n\n".join(
-        f"File: target/{path.name}\n{path.read_text(encoding='utf-8')}"
+        f"File: target/{path.name}\n{path.read_text(encoding='utf-8', errors='replace')}"
         if (base_dir == TARGET_DIR or base_dir.name == "target")
-        else f"File: {path.relative_to(base_dir).as_posix()}\n{path.read_text(encoding='utf-8')}"
+        else f"File: {path.relative_to(base_dir).as_posix()}\n{path.read_text(encoding='utf-8', errors='replace')}"
         for path in py_files
     )
     result = ask("scanner", SYSTEM, code)

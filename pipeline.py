@@ -111,6 +111,14 @@ def _upload_and_record(run_id):
 
 def run(run_id, repo_url=None):
     _ensure_run(run_id)
+    if repo_url:
+        repo_url = repo_url.strip()
+        if repo_url.startswith("git@github.com:"):
+            repo_url = "https://github.com/" + repo_url[len("git@github.com:"):]
+        elif not repo_url.startswith("http://") and not repo_url.startswith("https://"):
+            if "/" in repo_url:
+                repo_url = f"https://github.com/{repo_url}"
+
     _update_summary(
         run_id,
         status="running",
@@ -129,24 +137,57 @@ def run(run_id, repo_url=None):
             token = os.environ.get("GITHUB_TOKEN", "").strip()
             if token and "github.com" in repo_url and "@" not in repo_url:
                 clone_target = repo_url.replace("https://github.com/", f"https://x-access-token:{token}@github.com/")
-            subprocess.run(
+            res = subprocess.run(
                 ["git", "clone", "--depth", "1", clone_target, str(cloned_dir)],
                 capture_output=True,
-                check=True,
-                timeout=30,
+                text=True,
+                timeout=45,
             )
-            if (cloned_dir / "target").is_dir() and list((cloned_dir / "target").glob("*.py")):
-                source_dir = cloned_dir / "target"
-            elif list(cloned_dir.glob("*.py")):
-                source_dir = cloned_dir
-            elif any(cloned_dir.rglob("*.py")):
+            if res.returncode != 0:
+                raise RuntimeError(f"Git clone failed: {res.stderr.strip() or res.stdout.strip()}")
+
+            all_py = [
+                p for p in cloned_dir.rglob("*.py")
+                if not any(part.startswith(".") or part in {"venv", ".venv", "node_modules", "__pycache__"} for part in p.parts)
+            ]
+            if all_py:
                 source_dir = cloned_dir
             else:
-                _safe_update(run_id, "scan", "running", "No Python files found in repository; continuing with target benchmark...")
-                source_dir = Path("target")
+                _safe_update(run_id, "scan", "done", f"Repository cloned, but found 0 Python files. Checked {len(list(cloned_dir.rglob('*')))} files.")
+                _update_summary(
+                    run_id,
+                    status="done",
+                    stats_updates={"hypotheses": 0, "verified": 0, "fixed": 0, "discarded": 0},
+                    findings=[
+                        {
+                            "id": "info-no-py",
+                            "title": "ℹ️ No Python Backend Files Found in Repository",
+                            "verdict": "discarded",
+                            "severity": "low",
+                            "explain": {
+                                "story": f"We successfully cloned {repo_url}, but this repository appears to be a JavaScript/TypeScript frontend project without Python backend files.",
+                                "why_it_matters": "Verity specializes in testing Python web APIs and backend endpoints.",
+                                "mistake_pattern": "No backend source files to analyze.",
+                                "prevention_rule": "Point to a repository containing Python backend code (e.g. Flask, FastAPI, Django).",
+                                "ai_prompt": "No action needed.",
+                            },
+                            "vuln_type": "Information",
+                            "file": "README.md",
+                            "route": "/",
+                            "line": 1,
+                            "evidence": {"request": {"repo": repo_url}, "response": {"status": "0 Python files found"}},
+                            "patch": {"file": "", "diff": "", "summary": "No Python files to patch.", "fixed_code": ""},
+                            "replay": {},
+                            "test": "No test generated.",
+                        }
+                    ],
+                )
+                return
         except Exception as e:
-            _safe_update(run_id, "scan", "running", f"Repository private or clone failed; using target benchmark...")
-            source_dir = Path("target")
+            err_msg = str(e)
+            _safe_update(run_id, "scan", "failed", f"Clone failed: {err_msg[:80]}. Ensure repo is public or GITHUB_TOKEN is set.")
+            _update_summary(run_id, status="failed")
+            return
 
     try:
         # Stage 1: Scan
@@ -158,11 +199,13 @@ def run(run_id, repo_url=None):
 
         # Stage 2: Verify in Sandbox
         _safe_update(run_id, "verify", "running", "Starting sandbox and executing validation check...")
-        base_url, temp_dir, stop_sandbox = start_sandbox(str(source_dir))
-
-        attack_result = attack_idor(base_url)
-        stop_sandbox()
-        stop_sandbox = None
+        try:
+            base_url, temp_dir, stop_sandbox = start_sandbox(str(source_dir))
+            attack_result = attack_idor(base_url)
+            stop_sandbox()
+            stop_sandbox = None
+        except Exception as sandbox_err:
+            attack_result = {"confirmed": False, "error": str(sandbox_err)}
 
         if not attack_result["confirmed"]:
             _safe_update(run_id, "verify", "done", "No vulnerabilities confirmed (false alarms discarded).")
