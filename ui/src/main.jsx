@@ -275,7 +275,7 @@ function Finding({ finding, index, runId, isMock }) {
                       ? "False Alarm Discarded"
                       : "Privacy Leak Detected & Fully Remediated"}
                   </h3>
-                  <p style={{ margin: "6px 0 0", color: "#8fa087", fontSize: "12.5px" }}>
+                  <p style={{ margin: "6px 0 0", color: "var(--text-muted)", fontSize: "12.5px" }}>
                     {finding.title}
                   </p>
                 </div>
@@ -553,7 +553,7 @@ function App() {
       const meta = document.querySelector('meta[name="color-scheme"]');
       if (meta) meta.content = theme;
       const metaTheme = document.getElementById("theme-color-meta");
-      if (metaTheme) metaTheme.content = theme === "dark" ? "#101210" : "#f6f8f4";
+      if (metaTheme) metaTheme.content = theme === "dark" ? "#090c10" : "#f6f9fc";
     } catch {}
   }, [theme]);
 
@@ -842,7 +842,7 @@ function App() {
               style={{
                 background: "none",
                 border: "0",
-                color: "#7e867a",
+                color: "var(--text-subtle)",
                 cursor: "pointer",
                 padding: 0,
                 font: "inherit",
@@ -939,7 +939,7 @@ function App() {
               </div>
 
               {saveStatus && (
-                <div style={{ padding: "10px 14px", marginBottom: "16px", borderRadius: "6px", background: "rgba(197,232,127,0.1)", color: "#d7edb4", fontSize: "13px" }}>
+                <div style={{ padding: "10px 14px", marginBottom: "16px", borderRadius: "6px", background: "var(--bg-pill)", color: "var(--brand-pill-text)", fontSize: "13px" }}>
                   {saveStatus}
                 </div>
               )}
