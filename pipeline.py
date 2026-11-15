@@ -139,6 +139,8 @@ def run(run_id, repo_url=None):
                 source_dir = cloned_dir / "target"
             elif list(cloned_dir.glob("*.py")):
                 source_dir = cloned_dir
+            elif any(cloned_dir.rglob("*.py")):
+                source_dir = cloned_dir
             else:
                 _safe_update(run_id, "scan", "running", "No Python files found in repository; continuing with target benchmark...")
                 source_dir = Path("target")

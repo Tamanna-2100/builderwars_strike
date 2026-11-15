@@ -56,3 +56,11 @@ def test_scan_normalizes_numeric_id(monkeypatch, hypothesis):
     monkeypatch.setattr(scanner, "ask", Mock(return_value=[hypothesis]))
     assert scanner.scan()[0]["id"] == "1"
     assert hypothesis["id"] == 1
+
+
+def test_scan_accepts_many_hypotheses(monkeypatch, hypothesis):
+    many = [dict(hypothesis, id=str(i)) for i in range(1, 16)]
+    monkeypatch.setattr(scanner, "ask", Mock(return_value=many))
+    res = scanner.scan()
+    assert len(res) == 15
+    assert res[14]["id"] == "15"
