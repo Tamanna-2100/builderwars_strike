@@ -17,7 +17,9 @@ def artifact_files(run_id):
         raise FileNotFoundError("run not found")
     for path in sorted(directory.rglob("*")):
         relative = path.relative_to(directory)
-        if any(part.startswith(".") for part in relative.parts):
+        if any(part.startswith(".") or part == "__pycache__" for part in relative.parts):
+            continue
+        if path.suffix in {".pyc", ".pyo"}:
             continue
         if any((directory.joinpath(*relative.parts[:index])).is_symlink() for index in range(1, len(relative.parts) + 1)):
             continue

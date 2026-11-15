@@ -9,10 +9,11 @@ TARGET_DIR = Path(__file__).resolve().parent / "target"
 FIELDS = {"id", "vuln_type", "file", "route", "line", "reason"}
 
 
-def scan():
+def scan(target_dir=None):
+    base_dir = Path(target_dir).resolve() if target_dir else TARGET_DIR
     code = "\n\n".join(
         f"File: target/{path.name}\n{path.read_text(encoding='utf-8')}"
-        for path in sorted(TARGET_DIR.glob("*.py"))
+        for path in sorted(base_dir.glob("*.py"))
     )
     result = ask("scanner", SYSTEM, code)
     try:

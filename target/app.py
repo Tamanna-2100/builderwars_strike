@@ -39,6 +39,18 @@ def get_note(note_id):
     return jsonify(dict(note))
 
 
+@app.get("/documents/<int:doc_id>")
+def get_document(doc_id):
+    if current_user() is None:
+        return jsonify(error="Unauthorized"), 401
+    doc = get_db().execute(
+        "SELECT id, user_id, title, body FROM notes WHERE id = ?", (doc_id,)
+    ).fetchone()
+    if doc is None:
+        return jsonify(error="Not found"), 404
+    return jsonify(dict(doc))
+
+
 @app.get("/search")
 def search():
     user = current_user()
@@ -56,3 +68,8 @@ def search():
 def list_users():
     users = get_db().execute("SELECT id, name FROM users ORDER BY id").fetchall()
     return jsonify([dict(user) for user in users])
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="127.0.0.1", port=port)

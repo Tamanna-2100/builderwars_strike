@@ -10,3 +10,4 @@ runs/
 *.sqlite
 *.sqlite3
 *.pkg
+tests/test_security_*.py

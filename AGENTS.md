@@ -7,4 +7,5 @@ Style: minimal code, no comments, reply with changed files only.
 Hypothesis: {"id","vuln_type","file","route","line","reason"}
 TestSpec: {"id","title","vuln_type","file","steps":[{"as":"alice|bob|anon","method","path","body?"}],"expected_outcome":{"status":int,"body_contains":str}}
 state.json (/runs/{id}/state.json): {"run_id","status","stats":{"hypotheses","verified","fixed","discarded"},"steps":[{"name","status":"pending|running|done|failed","detail"}],"findings":[{"id","title","verdict":"confirmed|discarded","evidence":{"request","response"},"patch":{"file","diff","summary"},"replay":"blocked|still_vulnerable","test":str}]}
+Finding explanation: {"severity":"high|medium|low","explain":{"story":str,"why_it_matters":str,"mistake_pattern":str,"prevention_rule":str,"ai_prompt":str}}
 

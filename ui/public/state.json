@@ -14,9 +14,11 @@
       "id": "finding-01",
       "title": "Review access control on a record",
       "verdict": "confirmed",
+      "severity": "high",
+      "explain": {"story": "A person could read a record that was not theirs.", "why_it_matters": "Private information may be visible to the wrong person.", "mistake_pattern": "The application did not check who owns the record.", "prevention_rule": "Check ownership before returning private records.", "ai_prompt": "Check that each person is allowed to read a private record before returning it, and add tests for allowed and denied access."},
       "evidence": {"request": {"method": "GET", "path": "/records/:id"}, "response": {"status": 200, "body": "Synthetic response"}},
       "patch": {"file": "target/app.py", "diff": "--- a/target/app.py\n+++ b/target/app.py\n@@ -1,2 +1,3 @@\n def get_record():\n-    return record\n+    check_access(record)\n+    return record", "summary": "Add an access check before returning a record."},
-      "replay": "blocked",
+      "replay": {"response": {"status": 403, "body": "Access denied"}},
       "test": "Regression test pending review."
     },
     {

@@ -6,6 +6,22 @@ import pytest
 import patcher
 
 
+def proposal(filename="target/app.py", content="new\n"):
+    return {
+        "file": filename,
+        "content": content,
+        "summary": "Change",
+        "severity": "medium",
+        "explain": {
+            "story": "A person may see a private note.",
+            "why_it_matters": "The note should stay private.",
+            "mistake_pattern": "Missing access check",
+            "prevention_rule": "Check access first.",
+            "ai_prompt": "Check access before returning private data.",
+        },
+    }
+
+
 @pytest.fixture
 def workspace(monkeypatch, tmp_path):
     (tmp_path / "target").mkdir()
@@ -15,7 +31,7 @@ def workspace(monkeypatch, tmp_path):
 
 
 def test_creates_review_artifacts(workspace, monkeypatch):
-    ask = Mock(return_value={"file": "target/app.py", "content": "new\n", "summary": "Change"})
+    ask = Mock(return_value=proposal())
     monkeypatch.setattr(patcher, "ask", ask)
     result = patcher.patch({"id": "case-1", "file": "target/app.py", "vuln_type": "access"}, "old\n")
     assert (workspace / "target" / "app.py").read_text() == "old\n"
@@ -36,7 +52,7 @@ def test_rejects_invalid_paths(workspace, monkeypatch, identifier, filename):
 
 
 def test_rejects_wrong_proposal_file(workspace, monkeypatch):
-    monkeypatch.setattr(patcher, "ask", Mock(return_value={"file": "target/other.py", "content": "new", "summary": "Change"}))
+    monkeypatch.setattr(patcher, "ask", Mock(return_value=proposal("target/other.py", "new")))
     with pytest.raises(ValueError):
         patcher.patch({"id": "case", "file": "target/app.py"}, "old\n")
     assert not (workspace / "runs").exists()
@@ -46,7 +62,7 @@ def test_does_not_overwrite_existing_test(workspace, monkeypatch):
     (workspace / "tests").mkdir()
     existing = workspace / "tests/test_security_case.py"
     existing.write_text("existing", encoding="utf-8")
-    monkeypatch.setattr(patcher, "ask", Mock(return_value={"file": "target/app.py", "content": "new", "summary": "Change"}))
+    monkeypatch.setattr(patcher, "ask", Mock(return_value=proposal(content="new")))
     with pytest.raises(FileExistsError):
         patcher.patch({"id": "case", "file": "target/app.py"}, "old\n")
     assert existing.read_text() == "existing"
@@ -56,14 +72,14 @@ def test_does_not_overwrite_existing_test(workspace, monkeypatch):
 def test_rejects_output_directory_symlink(workspace, monkeypatch, tmp_path_factory):
     outside = tmp_path_factory.mktemp("outside")
     (workspace / "runs").symlink_to(outside, target_is_directory=True)
-    monkeypatch.setattr(patcher, "ask", Mock(return_value={"file": "target/app.py", "content": "new", "summary": "Change"}))
+    monkeypatch.setattr(patcher, "ask", Mock(return_value=proposal(content="new")))
     with pytest.raises(ValueError):
         patcher.patch({"id": "case", "file": "target/app.py"}, "old\n")
     assert not list(outside.iterdir())
 
 
 def test_failed_test_template_write_does_not_leave_patch(workspace, monkeypatch):
-    monkeypatch.setattr(patcher, "ask", Mock(return_value={"file": "target/app.py", "content": "new\n", "summary": "Change"}))
+    monkeypatch.setattr(patcher, "ask", Mock(return_value=proposal()))
     original_open = Path.open
 
     def failing_open(path, *args, **kwargs):
@@ -79,7 +95,7 @@ def test_failed_test_template_write_does_not_leave_patch(workspace, monkeypatch)
 
 def test_diff_separates_lines_without_trailing_newlines(workspace, monkeypatch):
     (workspace / "target/app.py").write_text("old", encoding="utf-8")
-    monkeypatch.setattr(patcher, "ask", Mock(return_value={"file": "target/app.py", "content": "new", "summary": "Change"}))
+    monkeypatch.setattr(patcher, "ask", Mock(return_value=proposal(content="new")))
     result = patcher.patch({"id": "case", "file": "target/app.py"}, "old")
     assert "-old\n" in result["diff"]
     assert "+new\n" in result["diff"]
