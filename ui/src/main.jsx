@@ -553,7 +553,7 @@ function App() {
       const meta = document.querySelector('meta[name="color-scheme"]');
       if (meta) meta.content = theme;
       const metaTheme = document.getElementById("theme-color-meta");
-      if (metaTheme) metaTheme.content = theme === "dark" ? "#090c10" : "#f6f9fc";
+      if (metaTheme) metaTheme.content = theme === "dark" ? "#070a0d" : "#f4fbfd";
     } catch {}
   }, [theme]);
 
