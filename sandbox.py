@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import shutil
 import socket
 import subprocess
@@ -15,6 +16,14 @@ def get_free_port():
 
 
 def start_sandbox(target_dir="target"):
+    target_path = Path(target_dir)
+    if (target_path / "target" / "app.py").is_file():
+        target_dir = str(target_path / "target")
+    elif (target_path / "app" / "app.py").is_file():
+        target_dir = str(target_path / "app")
+    elif (target_path / "src" / "app.py").is_file():
+        target_dir = str(target_path / "src")
+
     temp_dir = tempfile.mkdtemp(prefix="verity_sandbox_")
 
     if os.path.exists(target_dir) and os.path.isdir(target_dir):

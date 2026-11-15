@@ -146,43 +146,53 @@ def run(run_id, repo_url=None):
             if res.returncode != 0:
                 raise RuntimeError(f"Git clone failed: {res.stderr.strip() or res.stdout.strip()}")
 
-            all_py = [
-                p for p in cloned_dir.rglob("*.py")
-                if not any(part.startswith(".") or part in {"venv", ".venv", "node_modules", "__pycache__"} for part in p.parts)
-            ]
-            if all_py:
+            if (cloned_dir / "target" / "app.py").is_file():
+                source_dir = cloned_dir / "target"
+            elif (cloned_dir / "app.py").is_file():
                 source_dir = cloned_dir
+            elif (cloned_dir / "app" / "app.py").is_file():
+                source_dir = cloned_dir / "app"
+            elif (cloned_dir / "src" / "app.py").is_file():
+                source_dir = cloned_dir / "src"
             else:
-                _safe_update(run_id, "scan", "done", f"Repository cloned, but found 0 Python files. Checked {len(list(cloned_dir.rglob('*')))} files.")
-                _update_summary(
-                    run_id,
-                    status="done",
-                    stats_updates={"hypotheses": 0, "verified": 0, "fixed": 0, "discarded": 0},
-                    findings=[
-                        {
-                            "id": "info-no-py",
-                            "title": "ℹ️ No Python Backend Files Found in Repository",
-                            "verdict": "discarded",
-                            "severity": "low",
-                            "explain": {
-                                "story": f"We successfully cloned {repo_url}, but this repository appears to be a JavaScript/TypeScript frontend project without Python backend files.",
-                                "why_it_matters": "Verity specializes in testing Python web APIs and backend endpoints.",
-                                "mistake_pattern": "No backend source files to analyze.",
-                                "prevention_rule": "Point to a repository containing Python backend code (e.g. Flask, FastAPI, Django).",
-                                "ai_prompt": "No action needed.",
-                            },
-                            "vuln_type": "Information",
-                            "file": "README.md",
-                            "route": "/",
-                            "line": 1,
-                            "evidence": {"request": {"repo": repo_url}, "response": {"status": "0 Python files found"}},
-                            "patch": {"file": "", "diff": "", "summary": "No Python files to patch.", "fixed_code": ""},
-                            "replay": {},
-                            "test": "No test generated.",
-                        }
-                    ],
-                )
-                return
+                all_py = [
+                    p for p in cloned_dir.rglob("*.py")
+                    if not any(part.startswith(".") or part in {"venv", ".venv", "node_modules", "__pycache__"} for part in p.parts)
+                ]
+                if all_py:
+                    app_candidates = [p for p in all_py if p.name in {"app.py", "main.py", "server.py"}]
+                    source_dir = app_candidates[0].parent if app_candidates else cloned_dir
+                else:
+                    _safe_update(run_id, "scan", "done", f"Repository cloned, but found 0 Python files. Checked {len(list(cloned_dir.rglob('*')))} files.")
+                    _update_summary(
+                        run_id,
+                        status="done",
+                        stats_updates={"hypotheses": 0, "verified": 0, "fixed": 0, "discarded": 0},
+                        findings=[
+                            {
+                                "id": "info-no-py",
+                                "title": "ℹ️ No Python Backend Files Found in Repository",
+                                "verdict": "discarded",
+                                "severity": "low",
+                                "explain": {
+                                    "story": f"We successfully cloned {repo_url}, but this repository appears to be a JavaScript/TypeScript frontend project without Python backend files.",
+                                    "why_it_matters": "Verity specializes in testing Python web APIs and backend endpoints.",
+                                    "mistake_pattern": "No backend source files to analyze.",
+                                    "prevention_rule": "Point to a repository containing Python backend code (e.g. Flask, FastAPI, Django).",
+                                    "ai_prompt": "No action needed.",
+                                },
+                                "vuln_type": "Information",
+                                "file": "README.md",
+                                "route": "/",
+                                "line": 1,
+                                "evidence": {"request": {"repo": repo_url}, "response": {"status": "0 Python files found"}},
+                                "patch": {"file": "", "diff": "", "summary": "No Python files to patch.", "fixed_code": ""},
+                                "replay": {},
+                                "test": "No test generated.",
+                            }
+                        ],
+                    )
+                    return
         except Exception as e:
             err_msg = str(e)
             _safe_update(run_id, "scan", "failed", f"Clone failed: {err_msg[:80]}. Ensure repo is public or GITHUB_TOKEN is set.")
