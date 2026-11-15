@@ -1,6 +1,8 @@
 # Verity
 
-Verity is a hackathon prototype for turning application security findings into reviewable evidence, proposed code changes, and regression tests. Its intended audience is developers and security reviewers who need to understand a finding before deciding whether to fix it.
+> 📖 **Architecture & Cloud Deployment Guide**: See [verity_architecture_costs_and_cloud_deployment.md](verity_architecture_costs_and_cloud_deployment.md) for the complete 5-stage pipeline deep dive, AWS Bedrock & S3 cost breakdowns (\$0.004/scan), business pricing models, and Railway + Vercel deployment steps.
+
+Verity is an automated security engineer designed to protect applications built with AI tools (vibe coding). It turns candidate vulnerabilities into reviewable exploit evidence, generates verified defensive patches via AWS Bedrock, replays the exact exploit to guarantee remediation ("no proof, no alert / no failed exploit, no merge"), generates regression tests, and archives artifacts to Amazon S3.
 
 **This is a prototype, not a production security product. Do not use real customer code, credentials, or data with the current setup.** The included Flask application is intentionally vulnerable and is for isolated local demonstrations with synthetic data only.
 
